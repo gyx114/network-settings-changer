@@ -24,6 +24,8 @@ public:
 // 实现
 protected:
 	HICON m_hIcon;
+	CTabCtrl m_tab;
+	CListCtrl m_list;
 
 	// 生成的消息映射函数
 	virtual BOOL OnInitDialog();
@@ -34,4 +36,10 @@ public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
     afx_msg void OnBnClickedButton3();
+  afx_msg void OnBnClickedButton4();
+  afx_msg void OnTcnSelchangeTab1(NMHDR* pNMHDR, LRESULT* pResult);
+   afx_msg void OnNMRClickList1(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnNMDblclkList1(NMHDR* pNMHDR, LRESULT* pResult);
+	void UpdateTabControls();
+  void CopySelectedAdapterName();
 };

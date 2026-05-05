@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 #include <Windows.h>
+#include <iphlpapi.h>
+
+#define IDM_LIST_COPY 20001
+
+#pragma comment(lib, "iphlpapi.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -29,6 +34,8 @@ C切换网络Dlg::C切换网络Dlg(CWnd* pParent /*=nullptr*/)
 void C切换网络Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+   DDX_Control(pDX, IDC_TAB1, m_tab);
+	DDX_Control(pDX, IDC_LIST1, m_list);
 }
 
 BEGIN_MESSAGE_MAP(C切换网络Dlg, CDialogEx)
@@ -37,6 +44,10 @@ BEGIN_MESSAGE_MAP(C切换网络Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON1, &C切换网络Dlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BUTTON2, &C切换网络Dlg::OnBnClickedButton2)
    ON_BN_CLICKED(IDC_BUTTON3, &C切换网络Dlg::OnBnClickedButton3)
+   ON_BN_CLICKED(IDC_BUTTON4, &C切换网络Dlg::OnBnClickedButton4)
+   ON_NOTIFY(TCN_SELCHANGE, IDC_TAB1, &C切换网络Dlg::OnTcnSelchangeTab1)
+   ON_NOTIFY(NM_RCLICK, IDC_LIST1, &C切换网络Dlg::OnNMRClickList1)
+	ON_NOTIFY(NM_DBLCLK, IDC_LIST1, &C切换网络Dlg::OnNMDblclkList1)
 END_MESSAGE_MAP()
 
 
@@ -52,6 +63,16 @@ BOOL C切换网络Dlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	m_tab.InsertItem(0, _T("切换网络"));
+	m_tab.InsertItem(1, _T("网卡信息"));
+	m_tab.SetCurSel(0);
+
+   m_list.ModifyStyle(0, LVS_REPORT);
+	m_list.SetExtendedStyle(m_list.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+   m_list.InsertColumn(0, _T("状态"), LVCFMT_LEFT, 70);
+	m_list.InsertColumn(1, _T("网卡名称"), LVCFMT_LEFT, 180);
+
+	UpdateTabControls();
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -321,4 +342,154 @@ void C切换网络Dlg::OnBnClickedButton3()
 	{
 		AfxMessageBox(_T("无法打开配置文件，请手动定位并打开 config.ini。"));
 	}
+}
+
+void C切换网络Dlg::OnBnClickedButton4()
+{
+ m_list.DeleteAllItems();
+
+	ULONG bufferLength = 0;
+	DWORD flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+	DWORD result = GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, nullptr, &bufferLength);
+	if (result != ERROR_BUFFER_OVERFLOW)
+	{
+		m_list.InsertItem(0, _T("无法获取网卡信息。"));
+		return;
+	}
+
+	std::vector<BYTE> buffer(bufferLength);
+	auto addresses = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());
+	result = GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, addresses, &bufferLength);
+	if (result != NO_ERROR)
+	{
+		m_list.InsertItem(0, _T("无法获取网卡信息。"));
+		return;
+	}
+
+  int index = 0;
+	for (auto current = addresses; current != nullptr; current = current->Next)
+	{
+		if (!current->FriendlyName || current->FriendlyName[0] == L'\0')
+		{
+			continue;
+		}
+
+        CString status;
+		switch (current->OperStatus)
+		{
+		case IfOperStatusUp:
+			status = _T("已连接");
+			break;
+		case IfOperStatusDown:
+			status = _T("未连接");
+			break;
+		case IfOperStatusDormant:
+			status = _T("休眠");
+			break;
+		case IfOperStatusNotPresent:
+			status = _T("不可用");
+			break;
+		case IfOperStatusLowerLayerDown:
+			status = _T("链路断开");
+			break;
+		default:
+			status = _T("未知");
+			break;
+		}
+
+		m_list.InsertItem(index, status);
+		m_list.SetItemText(index, 1, current->FriendlyName);
+		++index;
+	}
+
+	if (index == 0)
+	{
+       m_list.InsertItem(0, _T("未找到网卡。"));
+	}
+}
+
+void C切换网络Dlg::OnNMRClickList1(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	*pResult = 0;
+
+	CPoint point;
+	GetCursorPos(&point);
+	CMenu menu;
+	if (!menu.CreatePopupMenu())
+	{
+		return;
+	}
+
+	menu.AppendMenu(MF_STRING, IDM_LIST_COPY, _T("复制"));
+	int command = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_RIGHTBUTTON, point.x, point.y, this);
+	if (command == IDM_LIST_COPY)
+	{
+		CopySelectedAdapterName();
+	}
+}
+
+void C切换网络Dlg::OnNMDblclkList1(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	CopySelectedAdapterName();
+	*pResult = 0;
+}
+
+void C切换网络Dlg::CopySelectedAdapterName()
+{
+	POSITION pos = m_list.GetFirstSelectedItemPosition();
+	if (!pos)
+	{
+		return;
+	}
+
+	int item = m_list.GetNextSelectedItem(pos);
+	CString name = m_list.GetItemText(item, 1);
+	if (name.IsEmpty())
+	{
+		return;
+	}
+
+	if (!OpenClipboard())
+	{
+		return;
+	}
+
+	EmptyClipboard();
+	SIZE_T bytes = (name.GetLength() + 1) * sizeof(wchar_t);
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+	if (hMem)
+	{
+		void* data = GlobalLock(hMem);
+		if (data)
+		{
+			memcpy(data, name.GetString(), bytes);
+			GlobalUnlock(hMem);
+			SetClipboardData(CF_UNICODETEXT, hMem);
+		}
+		else
+		{
+			GlobalFree(hMem);
+		}
+	}
+
+	CloseClipboard();
+}
+
+void C切换网络Dlg::OnTcnSelchangeTab1(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	UpdateTabControls();
+	*pResult = 0;
+}
+
+void C切换网络Dlg::UpdateTabControls()
+{
+	int sel = m_tab.GetCurSel();
+	bool isTab1 = (sel == 0);
+	bool isTab2 = (sel == 1);
+
+	GetDlgItem(IDC_BUTTON1)->ShowWindow(isTab1 ? SW_SHOW : SW_HIDE);
+	GetDlgItem(IDC_BUTTON2)->ShowWindow(isTab1 ? SW_SHOW : SW_HIDE);
+	GetDlgItem(IDC_BUTTON3)->ShowWindow(isTab2 ? SW_SHOW : SW_HIDE);
+	GetDlgItem(IDC_BUTTON4)->ShowWindow(isTab2 ? SW_SHOW : SW_HIDE);
+	GetDlgItem(IDC_LIST1)->ShowWindow(isTab2 ? SW_SHOW : SW_HIDE);
 }
