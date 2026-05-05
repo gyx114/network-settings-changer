@@ -36,6 +36,7 @@ BEGIN_MESSAGE_MAP(C切换网络Dlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON1, &C切换网络Dlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BUTTON2, &C切换网络Dlg::OnBnClickedButton2)
+   ON_BN_CLICKED(IDC_BUTTON3, &C切换网络Dlg::OnBnClickedButton3)
 END_MESSAGE_MAP()
 
 
@@ -291,4 +292,33 @@ void C切换网络Dlg::OnBnClickedButton2()
 	}
 
 	AfxMessageBox(_T("已尝试应用 Jinhong 配置。注意：修改网络需要管理员权限，若失败请以管理员身份运行程序。"));
+}
+
+void C切换网络Dlg::OnBnClickedButton3()
+{
+	// 打开配置文件（在 exe 同目录的 config.ini）
+	wchar_t buf[MAX_PATH];
+	GetModuleFileName(NULL, buf, MAX_PATH);
+	CString modulePath = buf;
+	int pos = modulePath.ReverseFind('\\');
+	CString iniPath;
+	if (pos != -1)
+		iniPath = modulePath.Left(pos + 1) + _T("config.ini");
+	else
+		iniPath = _T("config.ini");
+
+	// 如果不存在，提示并返回（InitInstance 已创建默认文件，但以防万一）
+	DWORD attr = GetFileAttributes(iniPath);
+	if (attr == INVALID_FILE_ATTRIBUTES)
+	{
+		AfxMessageBox(_T("配置文件不存在：") + iniPath);
+		return;
+	}
+
+	// 使用默认关联程序打开
+	HINSTANCE h = ShellExecute(NULL, _T("open"), iniPath, NULL, NULL, SW_SHOWNORMAL);
+	if ((INT_PTR)h <= 32)
+	{
+		AfxMessageBox(_T("无法打开配置文件，请手动定位并打开 config.ini。"));
+	}
 }

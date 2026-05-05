@@ -109,6 +109,36 @@ BOOL C切换网络App::InitInstance()
 		}
 	}
 
+	// 启动时检查 exe 所在目录下是否存在 config.ini，若不存在则创建默认配置
+	{
+		wchar_t modPath[MAX_PATH];
+		GetModuleFileName(NULL, modPath, MAX_PATH);
+		CString modulePath = modPath;
+		int p = modulePath.ReverseFind('\\');
+		CString iniPath;
+		if (p != -1) iniPath = modulePath.Left(p + 1) + _T("config.ini");
+		else iniPath = _T("config.ini");
+
+		DWORD attr = GetFileAttributes(iniPath);
+		if (attr == INVALID_FILE_ATTRIBUTES)
+		{
+			// 写入默认配置节
+			WritePrivateProfileString(_T("Internet"), _T("InterfaceName"), _T("Ethernet"), iniPath);
+			WritePrivateProfileString(_T("Internet"), _T("IP"), _T("192.168.0.100"), iniPath);
+			WritePrivateProfileString(_T("Internet"), _T("Mask"), _T("255.255.255.0"), iniPath);
+			WritePrivateProfileString(_T("Internet"), _T("Gateway"), _T("192.168.0.1"), iniPath);
+			WritePrivateProfileString(_T("Internet"), _T("DNS1"), _T("8.8.8.8"), iniPath);
+			WritePrivateProfileString(_T("Internet"), _T("DNS2"), _T("8.8.4.4"), iniPath);
+
+			WritePrivateProfileString(_T("Jinhong"), _T("InterfaceName"), _T("Ethernet"), iniPath);
+			WritePrivateProfileString(_T("Jinhong"), _T("IP"), _T("10.10.10.100"), iniPath);
+			WritePrivateProfileString(_T("Jinhong"), _T("Mask"), _T("255.255.255.0"), iniPath);
+			WritePrivateProfileString(_T("Jinhong"), _T("Gateway"), _T("10.10.10.1"), iniPath);
+			WritePrivateProfileString(_T("Jinhong"), _T("DNS1"), _T("114.114.114.114"), iniPath);
+			WritePrivateProfileString(_T("Jinhong"), _T("DNS2"), _T("1.1.1.1"), iniPath);
+		}
+	}
+
 
 	AfxEnableControlContainer();
 
